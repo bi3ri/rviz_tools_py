@@ -28,31 +28,33 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-
-# Python includes
-import numpy
-import random # randint
-
-# ROS includes
-import roslib
-import rospy
-import tf # tf/transformations.py
-from std_msgs.msg import Header, ColorRGBA
-from geometry_msgs.msg import Transform
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Point, Point32
-from geometry_msgs.msg import Vector3
-from geometry_msgs.msg import Quaternion
-from geometry_msgs.msg import Polygon
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.qos import QoSProfile, HistoryPolicy, ReliabilityPolicy, DurabilityPolicy, LivelinessPolicy
+import random  # randint
+import numpy as np
+from typing import Union
 from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Polygon
+from geometry_msgs.msg import Quaternion
+from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import Pose
+from std_msgs.msg import ColorRGBA
+
+Q90X = Quaternion(x=0.70710678, y=0., z=0., w=0.70710678)
+Q90Y = Quaternion(x=0., y=0.70710678, z=0., w=0.70710678)
+Q90Z = Quaternion(x=0., y=0., z=0.70710678, w=0.70710678)
 
 
-class RvizMarkers(object):
+class RvizMarkers(Node):
+
     """
     A class for publishing markers in Rviz
     """
 
     def __init__(self, base_frame, marker_topic, wait_time=None):
+        super().__init__('RvizMarkersNode_')  # + marker_topic)
         self.base_frame = base_frame
         self.marker_topic = marker_topic
 
@@ -62,20 +64,19 @@ class RvizMarkers(object):
         # Create the Rviz Marker Publisher
         self.loadMarkerPublisher(wait_time)
 
-
     def setDefaultMarkerParams(self):
         """
         Set the default parameters for each type of Rviz Marker
         """
 
-        self.marker_lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+        self.marker_lifetime = Duration(seconds=0.0).to_msg()
         self.muted = False
         self.alpha = 1.0
 
         # Set default parameters for Cylinder Marker
         self.cylinder_marker = Marker()
         self.cylinder_marker.header.frame_id = self.base_frame
-        self.cylinder_marker.ns = "Cylinder" # unique ID
+        self.cylinder_marker.ns = "Cylinder"  # unique ID
         self.cylinder_marker.action = Marker().ADD
         self.cylinder_marker.type = Marker().CYLINDER
         self.cylinder_marker.lifetime = self.marker_lifetime
@@ -83,13 +84,13 @@ class RvizMarkers(object):
         # Reset Marker
         self.reset_marker = Marker()
         self.reset_marker.header.frame_id = self.base_frame
-        self.reset_marker.header.stamp = rospy.Time()
+        self.reset_marker.header.stamp = self.get_clock().now().to_msg()
         self.reset_marker.action = 3
 
         # Arrow Marker
         self.arrow_marker = Marker()
         self.arrow_marker.header.frame_id = self.base_frame
-        self.arrow_marker.ns = "Arrow" # unique ID
+        self.arrow_marker.ns = "Arrow"  # unique ID
         self.arrow_marker.action = Marker().ADD
         self.arrow_marker.type = Marker().ARROW
         self.arrow_marker.lifetime = self.marker_lifetime
@@ -97,7 +98,7 @@ class RvizMarkers(object):
         # Rectangle Marker
         self.rectangle_marker = Marker()
         self.rectangle_marker.header.frame_id = self.base_frame
-        self.rectangle_marker.ns = "Rectangle" # unique ID
+        self.rectangle_marker.ns = "Rectangle"  # unique ID
         self.rectangle_marker.action = Marker().ADD
         self.rectangle_marker.type = Marker().CUBE
         self.rectangle_marker.lifetime = self.marker_lifetime
@@ -105,7 +106,7 @@ class RvizMarkers(object):
         # Line Marker
         self.line_marker = Marker()
         self.line_marker.header.frame_id = self.base_frame
-        self.line_marker.ns = "Line" # unique ID
+        self.line_marker.ns = "Line"  # unique ID
         self.line_marker.action = Marker().ADD
         self.line_marker.type = Marker().LINE_STRIP
         self.line_marker.lifetime = self.marker_lifetime
@@ -113,7 +114,7 @@ class RvizMarkers(object):
         # Path Marker (Line List)
         self.path_marker = Marker()
         self.path_marker.header.frame_id = self.base_frame
-        self.path_marker.ns = "Path" # unique ID
+        self.path_marker.ns = "Path"  # unique ID
         self.path_marker.action = Marker().ADD
         self.path_marker.type = Marker().LINE_LIST
         self.path_marker.lifetime = self.marker_lifetime
@@ -129,13 +130,13 @@ class RvizMarkers(object):
         # This renders a low-quality sphere
         self.sphere_marker = Marker()
         self.sphere_marker.header.frame_id = self.base_frame
-        self.sphere_marker.ns = "Sphere" # unique ID
+        self.sphere_marker.ns = "Sphere"  # unique ID
         self.sphere_marker.type = Marker().SPHERE
         self.sphere_marker.action = Marker().ADD
         self.sphere_marker.lifetime = self.marker_lifetime
-        self.sphere_marker.pose.position.x = 0
-        self.sphere_marker.pose.position.y = 0
-        self.sphere_marker.pose.position.z = 0
+        self.sphere_marker.pose.position.x = 0.0
+        self.sphere_marker.pose.position.y = 0.0
+        self.sphere_marker.pose.position.z = 0.0
         self.sphere_marker.pose.orientation.x = 0.0
         self.sphere_marker.pose.orientation.y = 0.0
         self.sphere_marker.pose.orientation.z = 0.0
@@ -146,13 +147,13 @@ class RvizMarkers(object):
         # higher-quality sphere than the method above
         self.sphere_marker2 = Marker()
         self.sphere_marker2.header.frame_id = self.base_frame
-        self.sphere_marker2.ns = "Sphere" # unique ID
+        self.sphere_marker2.ns = "Sphere"  # unique ID
         self.sphere_marker2.type = Marker().SPHERE_LIST
         self.sphere_marker2.action = Marker().ADD
         self.sphere_marker2.lifetime = self.marker_lifetime
-        self.sphere_marker2.pose.position.x = 0
-        self.sphere_marker2.pose.position.y = 0
-        self.sphere_marker2.pose.position.z = 0
+        self.sphere_marker2.pose.position.x = 0.0
+        self.sphere_marker2.pose.position.y = 0.0
+        self.sphere_marker2.pose.position.z = 0.0
         self.sphere_marker2.pose.orientation.x = 0.0
         self.sphere_marker2.pose.orientation.y = 0.0
         self.sphere_marker2.pose.orientation.z = 0.0
@@ -164,7 +165,7 @@ class RvizMarkers(object):
         # Spheres List (Multiple spheres)
         self.spheres_marker = Marker()
         self.spheres_marker.header.frame_id = self.base_frame
-        self.spheres_marker.ns = "Spheres" # unique ID
+        self.spheres_marker.ns = "Spheres"  # unique ID
         self.spheres_marker.type = Marker().SPHERE_LIST
         self.spheres_marker.action = Marker().ADD
         self.spheres_marker.lifetime = self.marker_lifetime
@@ -179,7 +180,7 @@ class RvizMarkers(object):
         # Cube Marker (Block or cuboid)
         self.cube_marker = Marker()
         self.cube_marker.header.frame_id = self.base_frame
-        self.cube_marker.ns = "Block" # unique ID
+        self.cube_marker.ns = "Block"  # unique ID
         self.cube_marker.action = Marker().ADD
         self.cube_marker.type = Marker().CUBE
         self.cube_marker.lifetime = self.marker_lifetime
@@ -187,7 +188,7 @@ class RvizMarkers(object):
         # Cubes List (Multiple cubes)
         self.cubes_marker = Marker()
         self.cubes_marker.header.frame_id = self.base_frame
-        self.cubes_marker.ns = "Cubes" # unique ID
+        self.cubes_marker.ns = "Cubes"  # unique ID
         self.cubes_marker.type = Marker().CUBE_LIST
         self.cubes_marker.action = Marker().ADD
         self.cubes_marker.lifetime = self.marker_lifetime
@@ -202,7 +203,7 @@ class RvizMarkers(object):
         # Cylinder Marker
         self.cylinder_marker = Marker()
         self.cylinder_marker.header.frame_id = self.base_frame
-        self.cylinder_marker.ns = "Cylinder" # unique ID
+        self.cylinder_marker.ns = "Cylinder"  # unique ID
         self.cylinder_marker.action = Marker().ADD
         self.cylinder_marker.type = Marker().CYLINDER
         self.cylinder_marker.lifetime = self.marker_lifetime
@@ -210,7 +211,7 @@ class RvizMarkers(object):
         # Mesh Marker
         self.mesh_marker = Marker()
         self.mesh_marker.header.frame_id = self.base_frame
-        self.mesh_marker.ns = "Mesh" # unique ID
+        self.mesh_marker.ns = "Mesh"  # unique ID
         self.mesh_marker.action = Marker().ADD
         self.mesh_marker.type = Marker().MESH_RESOURCE
         self.mesh_marker.lifetime = self.marker_lifetime
@@ -218,11 +219,10 @@ class RvizMarkers(object):
         # Text Marker
         self.text_marker = Marker()
         self.text_marker.header.frame_id = self.base_frame
-        self.text_marker.ns = "Text" # unique ID
+        self.text_marker.ns = "Text"  # unique ID
         self.text_marker.action = Marker().ADD
         self.text_marker.type = Marker().TEXT_VIEW_FACING
         self.text_marker.lifetime = self.marker_lifetime
-
 
     def loadMarkerPublisher(self, wait_time=None):
         """
@@ -237,14 +237,26 @@ class RvizMarkers(object):
             return
 
         # Create the Rviz Marker Publisher
-        self.pub_rviz_marker = rospy.Publisher(self.marker_topic, Marker, latch=True, queue_size=10)
-        rospy.logdebug("Publishing Rviz markers on topic '%s'", self.marker_topic)
+
+        qos_profile = QoSProfile(
+            history=HistoryPolicy.KEEP_ALL,
+            depth=10,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL
+            # lifesspan= Duration
+            # deadline= Duration
+            # liveliness=LivelinessPolicy.
+        )
+
+        self.pub_rviz_marker = self.create_publisher(
+            Marker, self.marker_topic, qos_profile)
+
+        self.get_logger().debug("Publishing Rviz markers on topic '%s'" % self.marker_topic)
 
         # Block for specified number of seconds,
         # or until there is 1 subscriber
         if wait_time != None:
             self.waitForSubscriber(self.pub_rviz_marker, wait_time)
-
 
     def waitForSubscriber(self, publisher, wait_time=1.0):
         """
@@ -252,23 +264,24 @@ class RvizMarkers(object):
         or until some number of seconds have elapsed.
         """
 
-        start_time = rospy.Time.now()
-        max_time = start_time + rospy.Duration(wait_time)
+        start_time = self.get_clock().now().to_msg()
+        max_time = start_time + Duration(seconds=wait_time).to_msg()
 
         num_existing_subscribers = publisher.get_num_connections()
 
+        rate = self.create_rate(100)
         while (num_existing_subscribers == 0):
-            #print 'Number of subscribers: ', num_existing_subscribers
-            rospy.Rate(100).sleep()
+            # print 'Number of subscribers: ', num_existing_subscribers
+            rate.sleep()
 
-            if (rospy.Time.now() > max_time):
-                rospy.logerr("No subscribers connected to the '%s' topic after %f seconds", self.marker_topic, wait_time)
+            if (self.get_clock().now().to_msg() > max_time):
+                self.get_logger().error("No subscribers connected to the '%s' topic after %f seconds",
+                                        self.marker_topic, wait_time)
                 return False
 
             num_existing_subscribers = publisher.get_num_connections()
 
         return True
-
 
     def publishMarker(self, marker):
         """
@@ -278,13 +291,12 @@ class RvizMarkers(object):
         if (self.muted == True):
             return True
 
-        ## Check ROS Publisher
-        #self.loadMarkerPublisher()
+        # Check ROS Publisher
+        self.loadMarkerPublisher()
 
         self.pub_rviz_marker.publish(marker)
 
         return True
-
 
     def deleteAllMarkers(self):
         """
@@ -292,7 +304,6 @@ class RvizMarkers(object):
         """
 
         return self.publishMarker(self.reset_marker)
-
 
     def getColor(self, color):
         """
@@ -306,7 +317,7 @@ class RvizMarkers(object):
         result = ColorRGBA()
         result.a = self.alpha
 
-        if (type(color) == tuple) or (type(color) == list):
+        if (isinstance(color, tuple) or isinstance(color, list)):
             if len(color) == 3:
                 result.r = color[0]
                 result.g = color[1]
@@ -317,7 +328,8 @@ class RvizMarkers(object):
                 result.b = color[2]
                 result.a = color[3]
             else:
-                raise ValueError('color must have 3 or 4 float values in getColor()')
+                raise ValueError(
+                    'color must have 3 or 4 float values in getColor()')
         elif (color == 'red'):
             result.r = 0.8
             result.g = 0.1
@@ -372,16 +384,16 @@ class RvizMarkers(object):
         elif (color == 'pink'):
             result.r = 1.0
             result.g = 0.4
-            result.b = 1
+            result.b = 1.0
         elif (color == 'lime_green'):
             result.r = 0.6
             result.g = 1.0
             result.b = 0.2
         elif (color == 'clear'):
-            result.r=1.0
-            result.g=1.0
-            result.b=1.0
-            result.a=0.0
+            result.r = 1.0
+            result.g = 1.0
+            result.b = 1.0
+            result.a = 0.0
         elif (color == 'purple'):
             result.r = 0.597
             result.g = 0.0
@@ -389,19 +401,19 @@ class RvizMarkers(object):
         elif (color == 'random'):
             # Get a random color that is not too light
             while True:
-                result.r = random.random() # random float from 0 to 1
+                result.r = random.random()  # random float from 0 to 1
                 result.g = random.random()
                 result.b = random.random()
-                if ((result.r + result.g + result.b) > 1.5): # 0=black, 3=white
+                if ((result.r + result.g + result.b) > 1.5):  # 0=black, 3=white
                     break
         else:
-            rospy.logerr("getColor() called with unknown color name '%s', defaulting to 'blue'", color)
+            self.get_logger().error(
+                "getColor() called with unknown color name '%s', defaulting to 'blue'", color)
             result.r = 0.1
             result.g = 0.1
             result.b = 0.8
 
-        return result 
-
+        return result
 
     def getRandomColor(self):
         """
@@ -425,11 +437,10 @@ class RvizMarkers(object):
         all_colors.append('purple')
 
         # Chose a random color name
-        rand_num =  random.randint(0, len(all_colors) - 1)
+        rand_num = random.randint(0, len(all_colors) - 1)
         rand_color_name = all_colors[rand_num]
 
         return rand_color_name
-
 
     def publishSphere(self, pose, color, scale, lifetime=None):
         """
@@ -445,25 +456,27 @@ class RvizMarkers(object):
             return True
 
         # Convert input pose to a ROS Pose Msg
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
             sphere_pose = mat_to_pose(pose)
-        elif type(pose) == Pose:
+        elif isinstance(pose, Pose):
             sphere_pose = pose
-        elif type(pose) == Point:
+        elif isinstance(pose, Point):
             pose_msg = Pose()
             pose_msg.position = pose
             sphere_pose = pose_msg
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishSphere()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishSphere()", type(pose).__name__)
             return False
 
         # Convert input scale to a ROS Vector3 Msg
-        if type(scale) == Vector3:
+        if isinstance(scale, Vector3):
             sphere_scale = scale
-        elif type(scale) == float:
-            sphere_scale = Vector3(scale, scale, scale)
+        elif isinstance(scale, float):
+            sphere_scale = Vector3(x=scale, y=scale, z=scale)
         else:
-            rospy.logerr("Scale is unsupported type '%s' in publishSphere()", type(scale).__name__)
+            self.get_logger().error(
+                "Scale is unsupported type '%s' in publishSphere()", type(scale).__name__)
             return False
 
         # Increment the ID number
@@ -473,12 +486,14 @@ class RvizMarkers(object):
         sphere_marker = self.sphere_marker
 
         if lifetime == None:
-            sphere_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            sphere_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            sphere_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            sphere_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        sphere_marker.header.stamp = rospy.Time.now()
+        sphere_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set marker size
         sphere_marker.scale = sphere_scale
@@ -490,7 +505,6 @@ class RvizMarkers(object):
         sphere_marker.pose = sphere_pose
 
         return self.publishMarker(sphere_marker)
-
 
     def publishSphere2(self, pose, color, scale, lifetime=None):
         """
@@ -506,40 +520,44 @@ class RvizMarkers(object):
             return True
 
         # Convert input pose to a ROS Pose Msg
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
             sphere_pose = mat_to_pose(pose)
-        elif type(pose) == Pose:
+        elif isinstance(pose, Pose):
             sphere_pose = pose
-        elif type(pose) == Point:
+        elif isinstance(pose, Point):
             pose_msg = Pose()
             pose_msg.position = pose
             sphere_pose = pose_msg
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishSphere()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishSphere()", type(pose).__name__)
             return False
 
         # Convert input scale to a ROS Vector3 Msg
-        if type(scale) == Vector3:
+        if isinstance(scale, Vector3):
             sphere_scale = scale
-        elif type(scale) == float:
-            sphere_scale = Vector3(scale, scale, scale)
+        elif isinstance(scale, float):
+            sphere_scale = Vector3(x=scale, y=scale, z=scale)
         else:
-            rospy.logerr("Scale is unsupported type '%s' in publishSphere()", type(scale).__name__)
+            self.get_logger().error(
+                "Scale is unsupported type '%s' in publishSphere()", type(scale).__name__)
             return False
 
         # Increment the ID number
         self.sphere_marker.id += 1
 
         # Get the default parameters
-        sphere_marker = self.sphere_marker2 # sphere_marker2 = SPHERE_LIST
+        sphere_marker = self.sphere_marker2  # sphere_marker2 = SPHERE_LIST
 
         if lifetime == None:
-            sphere_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            sphere_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            sphere_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            sphere_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        sphere_marker.header.stamp = rospy.Time.now()
+        sphere_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set marker size
         sphere_marker.scale = sphere_scale
@@ -552,7 +570,6 @@ class RvizMarkers(object):
         sphere_marker.colors[0] = self.getColor(color)
 
         return self.publishMarker(sphere_marker)
-
 
     def publishArrow(self, pose, color, scale, lifetime=None):
         """
@@ -568,21 +585,23 @@ class RvizMarkers(object):
             return True
 
         # Convert input pose to a ROS Pose Msg
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
             arrow_pose = mat_to_pose(pose)
-        elif type(pose) == Pose:
+        elif isinstance(pose, Pose):
             arrow_pose = pose
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishArrow()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishArrow()", type(pose).__name__)
             return False
 
         # Convert input scale to a ROS Vector3 Msg
-        if type(scale) == Vector3:
+        if isinstance(scale, Vector3):
             arrow_scale = scale
-        elif type(scale) == float:
-            arrow_scale = Vector3(scale, 0.1*scale, 0.1*scale)
+        elif isinstance(scale, float):
+            arrow_scale = Vector3(x=scale, y=0.1*scale, z=0.1*scale)
         else:
-            rospy.logerr("Scale is unsupported type '%s' in publishArrow()", type(scale).__name__)
+            self.get_logger().error(
+                "Scale is unsupported type '%s' in publishArrow()", type(scale).__name__)
             return False
 
         # Increment the ID number
@@ -592,12 +611,14 @@ class RvizMarkers(object):
         arrow_marker = self.arrow_marker
 
         if lifetime == None:
-            arrow_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            arrow_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            arrow_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            arrow_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        arrow_marker.header.stamp = rospy.Time.now()
+        arrow_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set the pose
         arrow_marker.pose = arrow_pose
@@ -609,7 +630,6 @@ class RvizMarkers(object):
         arrow_marker.color = self.getColor(color)
 
         return self.publishMarker(arrow_marker)
-
 
     def publishCube(self, pose, color, scale, lifetime=None):
         """
@@ -625,21 +645,23 @@ class RvizMarkers(object):
             return True
 
         # Convert input pose to a ROS Pose Msg
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
             cube_pose = mat_to_pose(pose)
-        elif type(pose) == Pose:
+        elif isinstance(pose, Pose):
             cube_pose = pose
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishCube()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishCube()", type(pose).__name__)
             return False
 
         # Convert input scale to a ROS Vector3 Msg
-        if type(scale) == Vector3:
+        if isinstance(scale, Vector3):
             cube_scale = scale
-        elif type(scale) == float:
-            cube_scale = Vector3(scale, scale, scale)
+        elif isinstance(scale, float):
+            cube_scale = Vector3(x=scale, y=scale, z=scale)
         else:
-            rospy.logerr("Scale is unsupported type '%s' in publishCube()", type(scale).__name__)
+            self.get_logger().error(
+                "Scale is unsupported type '%s' in publishCube()", type(scale).__name__)
             return False
 
         # Increment the ID number
@@ -649,12 +671,14 @@ class RvizMarkers(object):
         cube_marker = self.cube_marker
 
         if lifetime == None:
-            cube_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            cube_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            cube_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            cube_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        cube_marker.header.stamp = rospy.Time.now()
+        cube_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set the pose
         cube_marker.pose = cube_pose
@@ -667,8 +691,7 @@ class RvizMarkers(object):
 
         return self.publishMarker(cube_marker)
 
-
-    def publishCubes(self, list_of_cubes, color, scale, lifetime=None):
+    def publishCubes(self, list_of_cubes: list, color, scale: Union[Vector3, float], lifetime=None):
         """
         Publish a list of cubes.
 
@@ -682,17 +705,19 @@ class RvizMarkers(object):
             return True
 
         # Check input
-        if type(list_of_cubes) != list:
-            rospy.logerr("list_of_cubes is unsupported type '%s' in publishCubes()", type(list_of_cubes).__name__)
-            return False
+        # if isinstance(list_of_cubes, list) == False:
+        #     self.get_logger().error("list_of_cubes is unsupported type '%s' in publishCubes()",
+        #                             type(list_of_cubes).__name__)
+        #     return False
 
         # Convert input scale to a ROS Vector3 Msg
-        if type(scale) == Vector3:
+        if isinstance(scale, Vector3):
             cubes_scale = scale
-        elif type(scale) == float:
-            cubes_scale = Vector3(scale, scale, scale)
+        elif isinstance(scale, float):
+            cubes_scale = Vector3(x=scale, y=scale, z=scale)
         else:
-            rospy.logerr("Scale is unsupported type '%s' in publishCubes()", type(scale).__name__)
+            self.get_logger().error(
+                "Scale is unsupported type '%s' in publishCubes()", type(scale).__name__)
             return False
 
         # Increment the ID number
@@ -702,12 +727,14 @@ class RvizMarkers(object):
         cubes_marker = self.cubes_marker
 
         if lifetime == None:
-            cubes_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            cubes_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            cubes_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            cubes_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        cubes_marker.header.stamp = rospy.Time.now()
+        cubes_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set marker size
         cubes_marker.scale = cubes_scale
@@ -718,27 +745,27 @@ class RvizMarkers(object):
         cubes_color = self.getColor(color)
 
         # Set the cubes positions and color
-        cubes_marker.points[:] = [] # clear
+        cubes_marker.points[:] = []  # clear
         cubes_marker.colors[:] = []
         for i in range(0, len(list_of_cubes)):
 
             # Each cube position needs to be a ROS Point Msg
-            if type(list_of_cubes[i]) == Pose:
+            if isinstance(list_of_cubes[i], Pose):
                 cubes_marker.points.append(list_of_cubes[i].position)
                 cubes_marker.colors.append(cubes_color)
-            elif (type(list_of_cubes[i]) == numpy.matrix) or (type(list_of_cubes[i]) == numpy.ndarray):
+            elif (isinstance(list_of_cubes[i], np.matrix) or isinstance(list_of_cubes[i], np.ndarray)):
                 pose_i = mat_to_pose(list_of_cubes[i])
                 cubes_marker.points.append(pose_i.position)
                 cubes_marker.colors.append(cubes_color)
-            elif type(list_of_cubes[i]) == Point:
+            elif isinstance(list_of_cubes[i], Point):
                 cubes_marker.points.append(list_of_cubes[i])
                 cubes_marker.colors.append(cubes_color)
             else:
-                rospy.logerr("list_of_cubes contains unsupported type '%s' in publishCubes()", type(list_of_cubes[i]).__name__)
+                self.get_logger().error("list_of_cubes contains unsupported type '%s' in publishCubes()",
+                                        type(list_of_cubes[i]).__name__)
                 return False
 
         return self.publishMarker(cubes_marker)
-
 
     def publishBlock(self, pose, color, scale, lifetime=None):
         """
@@ -750,8 +777,7 @@ class RvizMarkers(object):
         @param lifetime (float, None = never expire)
         """
 
-        return self.publishCube(pose, color, scale)
-
+        return self.publishCube(pose, color, scale, lifetime=lifetime)
 
     def publishCylinder(self, pose, color, height, radius, lifetime=None):
         """
@@ -768,12 +794,13 @@ class RvizMarkers(object):
             return True
 
         # Convert input pose to a ROS Pose Msg
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
             cylinder_pose = mat_to_pose(pose)
-        elif type(pose) == Pose:
+        elif isinstance(pose, Pose):
             cylinder_pose = pose
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishCylinder()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishCylinder()", type(pose).__name__)
             return False
 
         # Increment the ID number
@@ -783,12 +810,14 @@ class RvizMarkers(object):
         cylinder_marker = self.cylinder_marker
 
         if lifetime == None:
-            cylinder_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            cylinder_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            cylinder_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            cylinder_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        cylinder_marker.header.stamp = rospy.Time.now()
+        cylinder_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set the pose
         cylinder_marker.pose = cylinder_pose
@@ -803,8 +832,7 @@ class RvizMarkers(object):
 
         return self.publishMarker(cylinder_marker)
 
-
-    def publishAxis(self, pose, length=0.05, radius=0.01, lifetime=None):
+    def publishAxis(self, pose: Union[np.matrix, np.array, Pose], length=0.05, radius=0.01, lifetime=None):
         """
         Publish an axis Marker.
 
@@ -815,40 +843,38 @@ class RvizMarkers(object):
         """
 
         # Convert input pose to a numpy matrix
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
-            axis_pose = pose
-        elif type(pose) == Pose:
-            axis_pose = pose_to_mat(pose)
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
+            center_pose = mat_to_pose(pose)
+        elif isinstance(pose, Pose):
+            center_pose = pose
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishAxis()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishAxis()", type(pose).__name__)
             return False
 
-        t = tf.transformations.translation_matrix( (length/2.0, 0.0, 0.0) )
-        r = tf.transformations.rotation_matrix(numpy.pi/2.0, (0,1,0))
-        m = tf.transformations.concatenate_matrices(axis_pose, t, r)
-        x_pose = mat_to_pose(m)
-        self.publishCylinder(x_pose, 'red', length, radius, lifetime)
-        rospy.sleep(0.2)
+        x_rot = point_rotation_by_quaternion(
+            Point(x=length/2), center_pose.orientation)
 
-        t = tf.transformations.translation_matrix( (0.0, length/2.0, 0.0) )
-        r = tf.transformations.rotation_matrix(numpy.pi/2.0, (1,0,0))
-        m = tf.transformations.concatenate_matrices(axis_pose, t, r)
-        y_pose = mat_to_pose(m)
-        self.publishCylinder(y_pose, 'green', length, radius, lifetime)
-        rospy.sleep(0.2)
+        self.publishCylinder(Pose(position=add_two_points(x_rot, center_pose.position),
+                                  orientation=quaternion_multiply(center_pose.orientation, Q90Y)), 'red', length, radius)
 
-        t = tf.transformations.translation_matrix( (0.0, 0.0, length/2.0) )
-        r = tf.transformations.rotation_matrix(0.0, (0,0,1))
-        m = tf.transformations.concatenate_matrices(axis_pose, t, r)
-        z_pose = mat_to_pose(m)
-        self.publishCylinder(z_pose, 'blue', length, radius, lifetime)
+        y_rot = point_rotation_by_quaternion(
+            Point(y=length/2), center_pose.orientation)
+
+        self.publishCylinder(Pose(position=add_two_points(y_rot, center_pose.position),
+                                  orientation=quaternion_multiply(center_pose.orientation, Q90X)), 'green', length, radius)
+
+        z_rot = point_rotation_by_quaternion(
+            Point(z=length/2), center_pose.orientation)
+
+        self.publishCylinder(Pose(position=add_two_points(z_rot, center_pose.position),
+                                  orientation=quaternion_multiply(center_pose.orientation, Q90Z)), 'blue', length, radius)
 
         return True
 
     def publishAxisArray(self, pose_array, length=0.05, radius=0.01, lifetime=None):
         for pose in pose_array:
             self.publishAxis(pose, length, radius, lifetime=lifetime)
-
 
     def publishMesh(self, pose, file_name, color, scale, lifetime=None):
         """
@@ -865,21 +891,23 @@ class RvizMarkers(object):
             return True
 
         # Convert input pose to a ROS Pose Msg
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
             mesh_pose = mat_to_pose(pose)
-        elif type(pose) == Pose:
+        elif isinstance(pose, Pose):
             mesh_pose = pose
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishMesh()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishMesh()", type(pose).__name__)
             return False
 
         # Convert input scale to a ROS Vector3 Msg
-        if type(scale) == Vector3:
+        if isinstance(scale, Vector3):
             mesh_scale = scale
-        elif type(scale) == float:
-            mesh_scale = Vector3(scale, scale, scale)
+        elif isinstance(scale, float):
+            mesh_scale = Vector3(x=scale, y=scale, z=scale)
         else:
-            rospy.logerr("Scale is unsupported type '%s' in publishMesh()", type(scale).__name__)
+            self.get_logger().error(
+                "Scale is unsupported type '%s' in publishMesh()", type(scale).__name__)
             return False
 
         # Increment the ID number
@@ -889,19 +917,21 @@ class RvizMarkers(object):
         mesh_marker = self.mesh_marker
 
         if lifetime == None:
-            mesh_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            mesh_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            mesh_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            mesh_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        mesh_marker.header.stamp = rospy.Time.now()
+        mesh_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set marker size
         mesh_marker.scale = mesh_scale
 
         # Set marker color
         if color == None:
-            mesh_marker.color = ColorRGBA() # no color
+            mesh_marker.color = ColorRGBA()  # no color
         else:
             mesh_marker.color = self.getColor(color)
 
@@ -913,7 +943,6 @@ class RvizMarkers(object):
         mesh_marker.mesh_use_embedded_materials = True
 
         return self.publishMarker(mesh_marker)
-
 
     def publishRectangle(self, point1, point2, color, lifetime=None):
         """
@@ -929,15 +958,17 @@ class RvizMarkers(object):
             return True
 
         # Convert input points to ROS Point Msgs
-        if type(point1) == Point:
+        if isinstance(point1, Point):
             rect_point1 = point1
         else:
-            rospy.logerr("Point1 is unsupported type '%s' in publishRectangle()", type(point1).__name__)
+            self.get_logger().error(
+                "Point1 is unsupported type '%s' in publishRectangle()", type(point1).__name__)
             return False
-        if type(point2) == Point:
+        if isinstance(point2, Point):
             rect_point2 = point2
         else:
-            rospy.logerr("Point2 is unsupported type '%s' in publishRectangle()", type(point2).__name__)
+            self.get_logger().error(
+                "Point2 is unsupported type '%s' in publishRectangle()", type(point2).__name__)
             return False
 
         # Increment the ID number
@@ -947,30 +978,34 @@ class RvizMarkers(object):
         rectangle_marker = self.rectangle_marker
 
         if lifetime == None:
-            rectangle_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            rectangle_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            rectangle_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            rectangle_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        rectangle_marker.header.stamp = rospy.Time.now()
+        rectangle_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set marker color
         rectangle_marker.color = self.getColor(color)
 
         # Calculate the center pose
         rect_pose = Pose()
-        rect_pose.position.x = (rect_point1.x - rect_point2.x) / 2.0 + rect_point2.x
-        rect_pose.position.y = (rect_point1.y - rect_point2.y) / 2.0 + rect_point2.y
-        rect_pose.position.z = (rect_point1.z - rect_point2.z) / 2.0 + rect_point2.z
+        rect_pose.position.x = (
+            rect_point1.x - rect_point2.x) / 2.0 + rect_point2.x
+        rect_pose.position.y = (
+            rect_point1.y - rect_point2.y) / 2.0 + rect_point2.y
+        rect_pose.position.z = (
+            rect_point1.z - rect_point2.z) / 2.0 + rect_point2.z
         rectangle_marker.pose = rect_pose
 
         # Calculate scale
-        rectangle_marker.scale.x = numpy.fabs(rect_point1.x - rect_point2.x)
-        rectangle_marker.scale.y = numpy.fabs(rect_point1.y - rect_point2.y)
-        rectangle_marker.scale.z = numpy.fabs(rect_point1.z - rect_point2.z)
+        rectangle_marker.scale.x = np.fabs(rect_point1.x - rect_point2.x)
+        rectangle_marker.scale.y = np.fabs(rect_point1.y - rect_point2.y)
+        rectangle_marker.scale.z = np.fabs(rect_point1.z - rect_point2.z)
 
         return self.publishMarker(rectangle_marker)
-
 
     def publishPlane(self, pose, depth, width, color, lifetime=None):
         """
@@ -987,12 +1022,13 @@ class RvizMarkers(object):
             return True
 
         # Convert input pose to a ROS Pose Msg
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
             rect_pose = mat_to_pose(pose)
-        elif type(pose) == Pose:
+        elif isinstance(pose, Pose):
             rect_pose = pose
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishRectangle()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishRectangle()", type(pose).__name__)
             return False
 
         # Increment the ID number
@@ -1002,12 +1038,14 @@ class RvizMarkers(object):
         rectangle_marker = self.rectangle_marker
 
         if lifetime == None:
-            rectangle_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            rectangle_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            rectangle_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            rectangle_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        rectangle_marker.header.stamp = rospy.Time.now()
+        rectangle_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set marker color
         rectangle_marker.color = self.getColor(color)
@@ -1021,7 +1059,6 @@ class RvizMarkers(object):
         rectangle_marker.scale.z = 0.0
 
         return self.publishMarker(rectangle_marker)
-
 
     def publishLine(self, point1, point2, color, width, lifetime=None):
         """
@@ -1038,30 +1075,32 @@ class RvizMarkers(object):
             return True
 
         # Convert input points to ROS Point Msgs
-        if type(point1) == Point:
+        if isinstance(point1, Point):
             line_point1 = point1
-        elif type(point1) == Pose:
+        elif isinstance(point1, Pose):
             position = point1.position
-            line_point1 = Point(position.x, position.y, position.z)
-        elif (type(point1) == numpy.matrix) or (type(point1) == numpy.ndarray):
+            line_point1 = Point(x=position.x, y=position.y, z=position.z)
+        elif (isinstance(point1, np.matrix) or isinstance(point1, np.ndarray)):
             pose = mat_to_pose(point1)
             position = pose.position
-            line_point1 = Point(position.x, position.y, position.z)
+            line_point1 = Point(x=position.x, y=position.y, z=position.z)
         else:
-            rospy.logerr("Point1 is unsupported type '%s' in publishLine()", type(point1).__name__)
+            self.get_logger().error(
+                "Point1 is unsupported type '%s' in publishLine()", type(point1).__name__)
             return False
 
-        if type(point2) == Point:
+        if isinstance(point2, Point):
             line_point2 = point2
-        elif type(point2) == Pose:
+        elif isinstance(point2, Pose):
             position = point2.position
-            line_point2 = Point(position.x, position.y, position.z)
-        elif (type(point2) == numpy.matrix) or (type(point2) == numpy.ndarray):
+            line_point2 = Point(x=position.x, y=position.y, z=position.z)
+        elif (isinstance(point2, np.matrix) or isinstance(point2, np.ndarray)):
             pose = mat_to_pose(point2)
             position = pose.position
-            line_point2 = Point(position.x, position.y, position.z)
+            line_point2 = Point(x=position.x, y=position.y, z=position.z)
         else:
-            rospy.logerr("Point2 is unsupported type '%s' in publishLine()", type(point2).__name__)
+            self.get_logger().error(
+                "Point2 is unsupported type '%s' in publishLine()", type(point2).__name__)
             return False
 
         # Increment the ID number
@@ -1071,18 +1110,20 @@ class RvizMarkers(object):
         line_marker = self.line_marker
 
         if lifetime == None:
-            line_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            line_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            line_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            line_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        line_marker.header.stamp = rospy.Time.now()
+        line_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set marker color
         line_marker.color = self.getColor(color)
 
         # Set the start and end points
-        line_marker.points[:] = [] # clear
+        line_marker.points[:] = []  # clear
         line_marker.points.append(line_point1)
         line_marker.points.append(line_point2)
 
@@ -1090,7 +1131,6 @@ class RvizMarkers(object):
         line_marker.scale.x = width
 
         return self.publishMarker(line_marker)
-
 
     def publishPath(self, path, color, width, lifetime=None):
         """
@@ -1106,10 +1146,11 @@ class RvizMarkers(object):
             return True
 
         # Check input
-        if type(path) == list:
-            path_path = path # :-)
+        if isinstance(path, list):
+            path_path = path  # :-)
         else:
-            rospy.logerr("Path is unsupported type '%s' in publishPath()", type(path).__name__)
+            self.get_logger().error(
+                "Path is unsupported type '%s' in publishPath()", type(path).__name__)
             return False
 
         # Increment the ID number
@@ -1119,12 +1160,14 @@ class RvizMarkers(object):
         path_marker = self.path_marker
 
         if lifetime == None:
-            path_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            path_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            path_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            path_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        path_marker.header.stamp = rospy.Time.now()
+        path_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set the path width
         path_marker.scale.x = width
@@ -1132,48 +1175,48 @@ class RvizMarkers(object):
         path_color = self.getColor(color)
 
         # Set the path points and color
-        path_marker.points[:] = [] # clear
+        path_marker.points[:] = []  # clear
         path_marker.colors[:] = []
         for i in range(1, len(path)):
 
             # Each path waypoint needs to be a ROS Point Msg
-            if type(path[i]) == Point:
+            if isinstance(path[i], Point):
                 # Start of segment is previous point
                 path_marker.points.append(path[i-1])
                 path_marker.colors.append(path_color)
                 # End of segment is current point
                 path_marker.points.append(path[i])
                 path_marker.colors.append(path_color)
-            elif type(path[i]) == Pose:
+            elif isinstance(path[i], Pose):
                 # Start of segment is previous point
                 position = path[i-1].position
-                point = Point(position.x, position.y, position.z)
+                point = Point(x=position.x, y=position.y, z=position.z)
                 path_marker.points.append(point)
                 path_marker.colors.append(path_color)
                 # End of segment is current point
                 position = path[i].position
-                point = Point(position.x, position.y, position.z)
+                point = Point(x=position.x, y=position.y, z=position.z)
                 path_marker.points.append(point)
                 path_marker.colors.append(path_color)
-            elif (type(path[i]) == numpy.matrix) or (type(path[i]) == numpy.ndarray):
+            elif (isinstance(path[i], np.matrix) or isinstance(path[i], np.ndarray)):
                 # Start of segment is previous point
                 pose = mat_to_pose(path[i-1])
                 position = pose.position
-                point = Point(position.x, position.y, position.z)
+                point = Point(x=position.x, y=position.y, z=position.z)
                 path_marker.points.append(point)
                 path_marker.colors.append(path_color)
                 # End of segment is current point
                 pose = mat_to_pose(path[i])
                 position = pose.position
-                point = Point(position.x, position.y, position.z)
+                point = Point(x=position.x, y=position.y, z=position.z)
                 path_marker.points.append(point)
-                path_marker.colors.append(path_color)           
+                path_marker.colors.append(path_color)
             else:
-                rospy.logerr("path list contains unsupported type '%s' in publishPath()", type(path[i]).__name__)
+                self.get_logger().error(
+                    "path list contains unsupported type '%s' in publishPath()", type(path[i]).__name__)
                 return False
 
         return self.publishMarker(path_marker)
-
 
     def publishPolygon(self, polygon, color, width, lifetime=None):
         """
@@ -1191,10 +1234,11 @@ class RvizMarkers(object):
             return True
 
         # Check input
-        if type(polygon) == Polygon:
+        if isinstance(polygon, Polygon):
             polygon_msg = polygon
         else:
-            rospy.logerr("Path is unsupported type '%s' in publishPolygon()", type(polygon).__name__)
+            self.get_logger().error(
+                "Path is unsupported type '%s' in publishPolygon()", type(polygon).__name__)
             return False
 
         # Copy points from ROS Polygon Msg into a list
@@ -1203,18 +1247,17 @@ class RvizMarkers(object):
             x = polygon_msg.points[i].x
             y = polygon_msg.points[i].y
             z = polygon_msg.points[i].z
-            polygon_path.append( Point(x,y,z) )
+            polygon_path.append(Point(x=x, y=y, z=z))
 
         # Add the first point again
         x = polygon_msg.points[0].x
         y = polygon_msg.points[0].y
         z = polygon_msg.points[0].z
-        polygon_path.append( Point(x,y,z) )
+        polygon_path.append(Point(x=x, y=y, z=z))
 
         return self.publishPath(polygon_path, color, width, lifetime)
 
-
-    def publishSpheres(self, list_of_spheres, color, scale, lifetime=None):
+    def publishSpheres(self, list_of_spheres: list, color, scale, lifetime=None):
         """
         Publish a list of spheres. This renders smoother, flatter-looking spheres.
 
@@ -1228,17 +1271,19 @@ class RvizMarkers(object):
             return True
 
         # Check input
-        if type(list_of_spheres) != list:
-            rospy.logerr("list_of_spheres is unsupported type '%s' in publishSpheres()", type(list_of_spheres).__name__)
-            return False
+        # if isinstance(list_of_spheres, list:
+        #     self.get_logger().error("list_of_spheres is unsupported type '%s' in publishSpheres()",
+        #                             type(list_of_spheres).__name__)
+        #     return False
 
         # Convert input scale to a ROS Vector3 Msg
-        if type(scale) == Vector3:
+        if isinstance(scale, Vector3):
             spheres_scale = scale
-        elif type(scale) == float:
-            spheres_scale = Vector3(scale, scale, scale)
+        elif isinstance(scale, float):
+            spheres_scale = Vector3(x=scale, y=scale, z=scale)
         else:
-            rospy.logerr("Scale is unsupported type '%s' in publishSpheres()", type(scale).__name__)
+            self.get_logger().error(
+                "Scale is unsupported type '%s' in publishSpheres()", type(scale).__name__)
             return False
 
         # Increment the ID number
@@ -1248,12 +1293,14 @@ class RvizMarkers(object):
         spheres_marker = self.spheres_marker
 
         if lifetime == None:
-            spheres_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            spheres_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            spheres_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            spheres_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        spheres_marker.header.stamp = rospy.Time.now()
+        spheres_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set marker size
         spheres_marker.scale = spheres_scale
@@ -1262,30 +1309,30 @@ class RvizMarkers(object):
         spheres_marker.color = self.getColor(color)
 
         spheres_color = self.getColor(color)
-        #spheres_marker.color = spheres_color
+        # spheres_marker.color = spheres_color
 
         # Set the sphere positions and color
-        spheres_marker.points[:] = [] # clear
+        spheres_marker.points[:] = []  # clear
         spheres_marker.colors[:] = []
         for i in range(0, len(list_of_spheres)):
 
             # Each sphere position needs to be a ROS Point Msg
-            if type(list_of_spheres[i]) == Pose:
-                spheres_marker.points.append( list_of_spheres[i].position ) 
+            if isinstance(list_of_spheres[i], Pose):
+                spheres_marker.points.append(list_of_spheres[i].position)
                 spheres_marker.colors.append(spheres_color)
-            elif (type(list_of_spheres[i]) == numpy.matrix) or (type(list_of_spheres[i]) == numpy.ndarray):
-                pose_i = mat_to_pose(list_of_spheres[i])
-                spheres_marker.points.append( pose_i.position )
+            elif (isinstance(list_of_spheres[i], np.matrix) or isinstance(list_of_spheres[i], np.ndarray)):
+                pose_i = self.mat_to_pose(list_of_spheres[i])
+                spheres_marker.points.append(pose_i.position)
                 spheres_marker.colors.append(spheres_color)
-            elif type(list_of_spheres[i]) == Point:
+            elif isinstance(list_of_spheres[i], Point):
                 spheres_marker.points.append(list_of_spheres[i])
                 spheres_marker.colors.append(spheres_color)
             else:
-                rospy.logerr("list_of_sphere contains unsupported type '%s' in publishSphere()", type(list_of_spheres[i]).__name__)
+                self.get_logger().error("list_of_sphere contains unsupported type '%s' in publishSphere()",
+                                        type(list_of_spheres[i]).__name__)
                 return False
 
         return self.publishMarker(spheres_marker)
-
 
     def publishText(self, pose, text, color, scale, lifetime=None):
         """
@@ -1302,21 +1349,23 @@ class RvizMarkers(object):
             return True
 
         # Convert input pose to a ROS Pose Msg
-        if (type(pose) == numpy.matrix) or (type(pose) == numpy.ndarray):
+        if (isinstance(pose, np.matrix) or isinstance(pose, np.ndarray)):
             text_pose = mat_to_pose(pose)
-        elif type(pose) == Pose:
+        elif isinstance(pose, Pose):
             text_pose = pose
         else:
-            rospy.logerr("Pose is unsupported type '%s' in publishText()", type(pose).__name__)
+            self.get_logger().error(
+                "Pose is unsupported type '%s' in publishText()", type(pose).__name__)
             return False
 
         # Convert input scale to a ROS Vector3 Msg
-        if type(scale) == Vector3:
+        if isinstance(scale, Vector3):
             text_scale = scale
-        elif type(scale) == float:
-            text_scale = Vector3(scale, scale, scale)
+        elif isinstance(scale, float):
+            text_scale = Vector3(x=scale, y=scale, z=scale)
         else:
-            rospy.logerr("Scale is unsupported type '%s' in publishText()", type(scale).__name__)
+            self.get_logger().error(
+                "Scale is unsupported type '%s' in publishText()", type(scale).__name__)
             return False
 
         # Increment the ID number
@@ -1326,12 +1375,14 @@ class RvizMarkers(object):
         text_marker = self.text_marker
 
         if lifetime == None:
-            text_marker.lifetime = rospy.Duration(0.0) # 0 = Marker never expires
+            text_marker.lifetime = Duration(
+                seconds=0.0).to_msg()  # 0 = Marker never expires
         else:
-            text_marker.lifetime = rospy.Duration(lifetime) # in seconds
+            text_marker.lifetime = Duration(
+                seconds=lifetime).to_msg()  # in seconds
 
         # Set the timestamp
-        text_marker.header.stamp = rospy.Time.now()
+        text_marker.header.stamp = self.get_clock().now().to_msg()
 
         # Set the pose
         text_marker.pose = text_pose
@@ -1346,45 +1397,132 @@ class RvizMarkers(object):
 
         return self.publishMarker(text_marker)
 
- 
-#------------------------------------------------------------------------------#
 
-
-def pose_to_mat(pose):
+def pose_to_mat(pose: Pose):
     """
     Convert a ROS Pose msg to a 4x4 matrix.
 
     @param pose (ROS geometry_msgs.msg.Pose)
 
-    @return mat 4x4 matrix (numpy.matrix)
+    @return mat 4x4 matrix (np.matrix)
     """
 
-    quat = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
-    pos = numpy.matrix([pose.position.x, pose.position.y, pose.position.z]).T
-    mat = numpy.matrix(tf.transformations.quaternion_matrix(quat))
-    mat[0:3, 3] = pos
+    mat = np.eye(4)
+    mat[0:3, 0:3] = quaternion_to_rotation_matrix(pose.orientation)
+    mat[0:3, 3] = np.asarray(
+        [pose.position.x, pose.position.y, pose.position.z])
 
     return mat
 
 
-def mat_to_pose(mat):
+def mat_to_pose(mat: Union[np.array, list[list]]):
     """
     Convert a homogeneous transformation matrix to a ROS Pose msg.
 
-    @param mat 4x4 homogenous transform (numpy.matrix or numpy.ndarray)
+    @param mat 4x4 homogenous transform (np.matrix or np.ndarray)
 
     @return pose (ROS geometry_msgs.msg.Pose)
     """
 
-    pose = Pose()
-    pose.position.x = mat[0,3]
-    pose.position.y = mat[1,3]
-    pose.position.z = mat[2,3]
+    return Pose(position=Point(x=mat[0, 3], y=mat[1, 3], z=mat[2, 3]),
+                orientation=roatoion_matrix_to_quaternion(mat))
 
-    quat = tf.transformations.quaternion_from_matrix(mat)
-    pose.orientation.x = quat[0]
-    pose.orientation.y = quat[1]
-    pose.orientation.z = quat[2]
-    pose.orientation.w = quat[3]
 
-    return pose
+def roatoion_matrix_to_quaternion(m):
+    """
+    Covert a rotation matrix into a quartenion.
+
+    Input
+    :param m: 3x3 rotation matrix
+
+    Output
+    :return: geometry_msgs/Quaternion
+
+    credit: https://stackoverflow.com/questions/69482958/reimplement-eigen-rotation-matrix-conversion-to-quaternions-in-python
+    """
+    t = np.matrix.trace(m)
+    q = np.asarray([0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+
+    if (t > 0):
+        t = np.sqrt(t + 1)
+        q[3] = 0.5 * t
+        t = 0.5/t
+        q[0] = (m[2, 1] - m[1, 2]) * t
+        q[1] = (m[0, 2] - m[2, 0]) * t
+        q[2] = (m[1, 0] - m[0, 1]) * t
+
+    else:
+        i = 0
+        if (m[1, 1] > m[0, 0]):
+            i = 1
+        if (m[2, 2] > m[i, i]):
+            i = 2
+        j = (i+1) % 3
+        k = (j+1) % 3
+
+        t = np.sqrt(m[i, i] - m[j, j] - m[k, k] + 1)
+        q[i] = 0.5 * t
+        t = 0.5 / t
+        q[3] = (m[k, j] - m[j, k]) * t
+        q[j] = (m[j, i] + m[i, j]) * t
+        q[k] = (m[k, i] + m[i, k]) * t
+
+    return Quaternion(x=q[0], y=[1], z=q[2], w=q[3])
+
+
+def quaternion_to_rotation_matrix(q: Quaternion):
+    """
+    Covert a quaternion into a full three-dimensional rotation matrix.
+
+    Input
+    :param Q: A 4 element array representing the quaternion.
+
+    Output
+    :return: A 3x3 element matrix representing the full 3D rotation matrix.
+            This rotation matrix converts a point in the local reference
+            frame to a point in the global reference frame.
+
+    """
+
+    r00 = 2 * (q.w * q.w + q.x * q.x) - 1
+    r01 = 2 * (q.x * q.y - q.w * q.z)
+    r02 = 2 * (q.x * q.z + q.w * q.y)
+    r10 = 2 * (q.x * q.y + q.w * q.z)
+    r11 = 2 * (q.w * q.w + q.y * q.y) - 1
+    r12 = 2 * (q.y * q.z - q.w * q.x)
+    r20 = 2 * (q.x * q.z - q.w * q.y)
+    r21 = 2 * (q.y * q.z + q.w * q.x)
+    r22 = 2 * (q.w * q.w + q.z * q.z) - 1
+
+    return np.array([[r00, r01, r02],
+                     [r10, r11, r12],
+                     [r20, r21, r22]])
+
+
+def quaternion_multiply(q1: Quaternion, q0: Quaternion):
+    return Quaternion(x=q1.x * q0.w + q1.y * q0.z - q1.z * q0.y + q1.w * q0.x,
+                      y=-q1.x * q0.z + q1.y * q0.w + q1.z * q0.x + q1.w * q0.y,
+                      z=q1.x * q0.y - q1.y * q0.x + q1.z * q0.w + q1.w * q0.z,
+                      w=-q1.x * q0.x - q1.y * q0.y - q1.z * q0.z + q1.w * q0.w)
+
+
+def point_rotation_by_quaternion(point: Point, q: Quaternion):
+    '''
+    q: qw, qx, qy, qz
+    '''
+    # r = [0]+point
+    r = Quaternion(x=point.x, y=point.y, z=point.z, w=0.0)
+    # q_conj = [q[0], -1*q[1], -1*q[2], -1*q[3]]
+    q_re = quaternion_multiply(
+        quaternion_multiply(q, r), quaternion_conjugate(q))
+    return Point(x=q_re.x, y=q_re.y, z=q_re.z)
+
+
+def add_two_points(p1: Point, p2: Point):
+    return Point(x=p1.x+p2.x,
+                 y=p1.y+p2.y,
+                 z=p1.z+p2.z)
+
+
+def quaternion_conjugate(q: Quaternion):
+    return Quaternion(x=-q.x, y=-q.y, z=-q.z, w=q.w)
